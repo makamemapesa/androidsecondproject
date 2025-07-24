@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🚨 FIRE EMERGENCY REPORTER 🚨"
+        android:textAlignment="center"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#FF0000"
+        android:layout_marginBottom="30dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="In case of fire emergency, press the PANIC button below.\nYour current location will be sent to emergency services."
+        android:textAlignment="center"
+        android:textSize="16sp"
+        android:layout_marginBottom="40dp" />
+
+    <Button
+        android:id="@+id/panicButton"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:text="🔥 PANIC 🔥"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/panic_button_background"
+        android:layout_marginBottom="30dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/panicResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Press the PANIC button to report emergency"
+            android:textAlignment="center"
+            android:textSize="16sp"
+            android:padding="20dp"
+            android:background="#F0F0F0"
+            android:layout_marginTop="20dp" />
+    </ScrollView>
+
+</LinearLayout>
