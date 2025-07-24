@@ -174,6 +174,10 @@ public class LoginActivity extends AppCompatActivity {
                             // success from API
                             Toast.makeText(this, "Logged in via API as DRIVER", Toast.LENGTH_SHORT).show();
                             // TODO: redirect to Driver screen when ready
+                            Intent intent = new Intent(this, DriverActivity.class);
+                            intent.putExtra("email", email);
+                            startActivity(intent);
+                            finish();
                         },
                         error -> {
                             Toast.makeText(this, "Login failed: Not found", Toast.LENGTH_SHORT).show();
