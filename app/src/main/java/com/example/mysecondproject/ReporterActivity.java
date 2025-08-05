@@ -69,11 +69,38 @@ public class ReporterActivity extends AppCompatActivity {
         emergencyDAO.create(userEmail, lat, lng, fakeAddress);
 
         // Send to server
-        sendEmergencyToServer(emergencyDto);
+        fetchReporterIdByEmail(userEmail, emergencyDto);
     }
 
-    private void sendEmergencyToServer(EmergencyDto emergencyDto) {
-        String url = "http://192.168.1.108:8080/emergencies";
+    private void fetchReporterIdByEmail(String email, EmergencyDto emergencyDto) {
+        String url = Constants.BASE_URL + "/users/by-email/" + email;
+
+        JsonObjectRequest request = new JsonObjectRequest(
+                Request.Method.GET,
+                url,
+                null,
+                response -> {
+                    try {
+                        long reporterId = response.getLong("id");
+                        sendEmergencyToServer(emergencyDto, reporterId);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                },
+                error -> {
+                    Log.e("UserFetch", "Failed to fetch reporter by email: " + error.toString());
+                    Toast.makeText(this, "Failed to fetch reporter", Toast.LENGTH_SHORT).show();
+                }
+        );
+
+        Volley.newRequestQueue(this).add(request);
+    }
+
+
+    private void sendEmergencyToServer(EmergencyDto emergencyDto, long reporterId) {
+        String url = Constants.BASE_URL + "/emergencies";
+
+
 
         JSONObject jsonBody = new JSONObject();
         try {
@@ -85,8 +112,8 @@ public class ReporterActivity extends AppCompatActivity {
             jsonBody.put("reportedAt", emergencyDto.getReportedAt());
             jsonBody.put("respondedAt", JSONObject.NULL);
             jsonBody.put("completedAt", JSONObject.NULL);
-            jsonBody.put("reporterId", 2); // Replace with actual reporter ID
-            jsonBody.put("driverId", 2);   // Replace with actual driver ID
+
+            jsonBody.put("reporterId", reporterId);
 
             Log.d("EmergencyJSON", jsonBody.toString());
 

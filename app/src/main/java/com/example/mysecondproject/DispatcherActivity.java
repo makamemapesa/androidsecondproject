@@ -65,7 +65,7 @@ public class DispatcherActivity extends AppCompatActivity {
             h.tvStatus.setText("Status: " + em.status);
 
             h.btnAssign.setEnabled("NEW".equals(em.status));
-            h.btnAssign.setOnClickListener(v -> showDriverPicker(em.id));
+//            h.btnAssign.setOnClickListener(v -> showDriverPicker(em.id));
         }
         @Override public int getItemCount() { return items.size(); }
 
@@ -82,20 +82,20 @@ public class DispatcherActivity extends AppCompatActivity {
         }
     }
 
-    private void showDriverPicker(int emergencyId) {
-        // fetch all FREE drivers
-        List<String> freeDrivers = uDao.fetchByRoleAndStatus("DRIVER", "FREE");
-        String[] arr = freeDrivers.toArray(new String[0]);
-
-        new AlertDialog.Builder(this)
-                .setTitle("Assign Driver")
-                .setItems(arr, (dlg, which) -> {
-                    String email = arr[which];
-                    eDao.assignDriver(emergencyId, email);
-                    uDao.updateDriverStatus(email, "ON_PROGRESS");
-                    loadList();
-                    // TODO: send FCM to driver
-                })
-                .show();
-    }
+//    private void showDriverPicker(int emergencyId) {
+//        // fetch all FREE drivers
+//        List<String> freeDrivers = uDao.fetchByRoleAndStatus("DRIVER", "FREE");
+//        String[] arr = freeDrivers.toArray(new String[0]);
+//
+//        new AlertDialog.Builder(this)
+//                .setTitle("Assign Driver")
+//                .setItems(arr, (dlg, which) -> {
+//                    String email = arr[which];
+//                    eDao.assignDriver(emergencyId, email);
+//                    uDao.updateDriverStatus(email, "ON_PROGRESS");
+//                    loadList();
+//
+//                })
+//                .show();
+//    }
 }

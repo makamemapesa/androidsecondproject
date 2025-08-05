@@ -4,91 +4,108 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-
-import java.util.ArrayList;
-import java.util.List;
+import android.util.Log;
 
 public class UserDAO {
-    private DBHelper dbHelper;
+    private final DBHelper dbHelper;
 
     public UserDAO(Context context) {
         dbHelper = new DBHelper(context);
     }
 
-    public boolean registerUser(String fname, String lname, String email, String pass, String role) {
+    // Register user locally
+    public boolean registerUser(String firstName, String middleName, String lastName,
+                                String email, String password, String phone,
+                                String role, String address) {
+
         SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("first_name", fname);
-        cv.put("last_name", lname);
-        cv.put("email", email);
-        cv.put("password", pass);
-        cv.put("role", role);
-        cv.put("status", "FREE"); // Default status
-        
-        long result = db.insert("users", null, cv);
-        db.close();
-        return result != -1;
+
+        ContentValues values = new ContentValues();
+        values.put("first_name", firstName);
+        values.put("middle_name", middleName);
+        values.put("last_name", lastName);
+        values.put("email", email);
+        values.put("password", password);
+        values.put("phone", phone);
+        values.put("role", role);
+        values.put("address", address);
+        values.put("status", "FREE");      // Driver status
+        values.put("backend_id", -1);      // Default backend ID
+
+        try {
+            long id = db.insertOrThrow("users", null, values);
+            Log.d("UserDAO", "User registered locally with ID: " + id);
+            return true;
+        } catch (Exception e) {
+            Log.e("UserDAO", "Insert failed for email: " + email + " Error: " + e.getMessage());
+            return false;
+        } finally {
+            db.close();
+        }
     }
 
+    // Check if user exists by email
+    public boolean userExists(String email) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT 1 FROM users WHERE email = ?", new String[]{email});
+        boolean exists = cursor.moveToFirst();
+        cursor.close();
+        db.close();
+        return exists;
+    }
+
+    // Login and get full user record
     public Cursor loginUser(String email, String password) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM users WHERE email = ? AND password = ?", 
-                new String[]{email, password});
+        return db.rawQuery(
+                "SELECT * FROM users WHERE email = ? AND password = ?",
+                new String[]{email, password}
+        );
     }
 
-    public List<String> fetchByRoleAndStatus(String role, String status) {
+    // Validate login only (true/false)
+    public boolean validateLogin(String email, String password) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor c = db.rawQuery("SELECT email FROM users WHERE role = ? AND status = ?", 
-                new String[]{role, status});
-        
-        List<String> out = new ArrayList<>();
-        while (c.moveToNext()) {
-            out.add(c.getString(0));
-        }
-        c.close();
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM users WHERE email = ? AND password = ?",
+                new String[]{email, password}
+        );
+        boolean isValid = cursor.moveToFirst();
+        cursor.close();
         db.close();
-        return out;
+        return isValid;
     }
 
-    public void updateDriverStatus(String email, String newStatus) {
+    // Update backend ID
+    public boolean saveBackendId(String email, long backendId) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("status", newStatus);
-        db.update("users", cv, "email = ?", new String[]{email});
+        ContentValues values = new ContentValues();
+        values.put("backend_id", backendId);
+        int rows = db.update("users", values, "email = ?", new String[]{email});
         db.close();
+        return rows > 0;
     }
 
+    // Get driver status
     public String getDriverStatus(String email) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor c = db.rawQuery("SELECT status FROM users WHERE email = ?", new String[]{email});
-        
-        String status = "FREE"; // default
-        if (c.moveToFirst()) {
-            status = c.getString(0);
-            if (status == null) status = "FREE";
+        Cursor cursor = db.rawQuery("SELECT status FROM users WHERE email = ?", new String[]{email});
+        String status = "UNKNOWN";
+        if (cursor.moveToFirst()) {
+            status = cursor.getString(0);
         }
-        c.close();
+        cursor.close();
         db.close();
         return status;
     }
 
-    public String getUserFullName(String email) {
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor c = db.rawQuery("SELECT first_name, last_name FROM users WHERE email = ?", 
-                new String[]{email});
-        
-        String fullName = email; // fallback
-        if (c.moveToFirst()) {
-            String firstName = c.getString(0);
-            String lastName = c.getString(1);
-            fullName = firstName + " " + lastName;
-        }
-        c.close();
+    // Update driver status
+    public boolean updateDriverStatus(String email, String newStatus) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("status", newStatus);
+        int rows = db.update("users", values, "email = ?", new String[]{email});
         db.close();
-        return fullName;
-    }
-
-    public List<String> getAllFreeDrivers() {
-        return fetchByRoleAndStatus("DRIVER", "FREE");
+        return rows > 0;
     }
 }
