@@ -209,16 +209,24 @@ public class RegisterActivity extends AppCompatActivity {
                     finish();
                 },
                 error -> {
-                    Log.e("RegisterRequest", "Error response: " + error.toString());
+                    // Enhanced error logging
+                    String errorMessage = "Backend registration failed";
                     if (error.networkResponse != null) {
-                        Log.e("RegisterRequest", "Status Code: " + error.networkResponse.statusCode);
-                        Log.e("RegisterRequest", "Response Data: " + new String(error.networkResponse.data));
+                        int statusCode = error.networkResponse.statusCode;
+                        String responseData = new String(error.networkResponse.data);
+                        errorMessage += " (Status " + statusCode + ")";
+                        Log.e("RegisterRequest", "Error Status Code: " + statusCode);
+                        Log.e("RegisterRequest", "Error Response Data: " + responseData);
+                    } else if (error.getCause() != null) {
+                        Log.e("RegisterRequest", "Error Cause: " + error.getCause().getMessage());
+                        errorMessage += ": " + error.getCause().getMessage();
+                    } else {
+                        Log.e("RegisterRequest", "Error with no response: " + error.toString());
                     }
-                    Toast.makeText(RegisterActivity.this, "Backend registration failed", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(RegisterActivity.this, errorMessage, Toast.LENGTH_LONG).show();
                 });
 
         Volley.newRequestQueue(this).add(request);
     }
 
 }
-
