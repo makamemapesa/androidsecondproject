@@ -1,27 +1,36 @@
 package com.example.mysecondproject;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.*;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-
+import androidx.core.app.ActivityCompat;
 import com.android.volley.Request;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
-
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
-import java.util.Random;
 import java.util.TimeZone;
 
 public class ReporterActivity extends AppCompatActivity {
+
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+    private FusedLocationProviderClient fusedLocationClient;
     private Button panicButton;
     private TextView panicResult;
-    private EmergencyDAO emergencyDAO;
     private String userEmail;
 
     @Override
@@ -31,76 +40,103 @@ public class ReporterActivity extends AppCompatActivity {
 
         panicButton = findViewById(R.id.panicButton);
         panicResult = findViewById(R.id.panicResult);
-        emergencyDAO = new EmergencyDAO(this);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Get email from intent
-        userEmail = getIntent().getStringExtra("email");
+        userEmail = getIntent().getStringExtra("user_email");
         if (userEmail == null) {
-            userEmail = "unknown@example.com"; // fallback
+            userEmail = "unknown@example.com"; // Fallback
         }
 
-        // Set click listener
-        panicButton.setOnClickListener(v -> reportEmergency());
+        panicButton.setOnClickListener(v -> {
+            if (checkLocationPermissions()) {
+                showDescriptionDialog();
+            } else {
+                requestLocationPermissions();
+            }
+        });
     }
 
-    private void reportEmergency() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+    private boolean checkLocationPermissions() {
+        return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
+               ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestLocationPermissions() {
+        ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
+                LOCATION_PERMISSION_REQUEST_CODE);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                showDescriptionDialog();
+            } else {
+                Toast.makeText(this, "Location permission is required to report an emergency.", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void showDescriptionDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Describe the Emergency");
+
+        final EditText input = new EditText(this);
+        input.setHint("e.g., Fire at the kitchen");
+        builder.setView(input);
+
+        builder.setPositiveButton("Submit", (dialog, which) -> {
+            String description = input.getText().toString();
+            getCurrentLocationAndReport(description);
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
+        builder.show();
+    }
+
+    private void getCurrentLocationAndReport(String description) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null) {
+                        reportEmergency(location, description);
+                    } else {
+                        Toast.makeText(this, "Could not get location. Please ensure GPS is enabled.", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void reportEmergency(Location location, String description) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
         sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
         String formattedDate = sdf.format(new Date());
 
-        double baseLat = -6.1659;
-        double baseLng = 39.2026;
-        Random rand = new Random();
-        double lat = baseLat + (rand.nextDouble() - 0.5) * 0.1;
-        double lng = baseLng + (rand.nextDouble() - 0.5) * 0.1;
-
-        String fakeAddress = String.format(Locale.getDefault(),
-                "Fake Location #%d, Zanzibar", rand.nextInt(1000));
-
         EmergencyDto emergencyDto = new EmergencyDto();
-        emergencyDto.setDescription("Panic reported");
-        emergencyDto.setLocationDescription(fakeAddress);
-        emergencyDto.setLatitude(lat);
-        emergencyDto.setLongitude(lng);
+        emergencyDto.setDescription(description);
+        emergencyDto.setLocationDescription("Location from GPS");
+        emergencyDto.setLatitude(location.getLatitude());
+        emergencyDto.setLongitude(location.getLongitude());
         emergencyDto.setStatus("NEW");
         emergencyDto.setReportedAt(formattedDate);
 
-        // Save to local database
-        emergencyDAO.create(userEmail, lat, lng, fakeAddress);
+        // Create a UserDto-like structure for the reporter
+        JSONObject reporterJson = new JSONObject();
+        try {
+            reporterJson.put("email", userEmail);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
 
-        // Send to server
-        fetchReporterIdByEmail(userEmail, emergencyDto);
+        sendEmergencyToServer(emergencyDto, reporterJson);
     }
 
-    private void fetchReporterIdByEmail(String email, EmergencyDto emergencyDto) {
-        String url = Constants.BASE_URL + "/users/by-email/" + email;
-
-        JsonObjectRequest request = new JsonObjectRequest(
-                Request.Method.GET,
-                url,
-                null,
-                response -> {
-                    try {
-                        long reporterId = response.getLong("id");
-                        sendEmergencyToServer(emergencyDto, reporterId);
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                },
-                error -> {
-                    Log.e("UserFetch", "Failed to fetch reporter by email: " + error.toString());
-                    Toast.makeText(this, "Failed to fetch reporter", Toast.LENGTH_SHORT).show();
-                }
-        );
-
-        Volley.newRequestQueue(this).add(request);
-    }
-
-
-    private void sendEmergencyToServer(EmergencyDto emergencyDto, long reporterId) {
-        String url = Constants.BASE_URL + "/emergencies";
-
-
+    private void sendEmergencyToServer(EmergencyDto emergencyDto, JSONObject reporterJson) {
+        String url = Constants.BASE_URL + "/emergencies/panic";
 
         JSONObject jsonBody = new JSONObject();
         try {
@@ -110,33 +146,33 @@ public class ReporterActivity extends AppCompatActivity {
             jsonBody.put("longitude", emergencyDto.getLongitude());
             jsonBody.put("locationDescription", emergencyDto.getLocationDescription());
             jsonBody.put("reportedAt", emergencyDto.getReportedAt());
-            jsonBody.put("respondedAt", JSONObject.NULL);
-            jsonBody.put("completedAt", JSONObject.NULL);
-
-            jsonBody.put("reporterId", reporterId);
-
-            Log.d("EmergencyJSON", jsonBody.toString());
+            jsonBody.put("reporter", reporterJson); // Pass the reporter's email
 
         } catch (JSONException e) {
             e.printStackTrace();
+            Toast.makeText(this, "Error creating emergency report.", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        // Show "Sending..." while request is in progress
         panicButton.setText("Sending...");
+        panicButton.setEnabled(false);
 
         JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(
                 Request.Method.POST,
                 url,
                 jsonBody,
                 response -> {
-                    Log.d("EmergencyDAO", "Emergency sent successfully: " + response);
-                    Toast.makeText(ReporterActivity.this, "🚨 Emergency sent successfully!", Toast.LENGTH_SHORT).show();
-                    panicButton.setText("Panic!");
+                    Log.d("EmergencyReport", "Emergency sent successfully: " + response.toString());
+                    Toast.makeText(ReporterActivity.this, "Emergency reported successfully!", Toast.LENGTH_LONG).show();
+                    panicResult.setText("Emergency reported at " + new Date().toString());
+                    panicButton.setText("PANIC");
+                    panicButton.setEnabled(true);
                 },
                 error -> {
-                    Log.e("EmergencyDAO", "Error sending emergency: " + error.toString());
-                    Toast.makeText(ReporterActivity.this, "❌ Failed to send emergency", Toast.LENGTH_SHORT).show();
-                    panicButton.setText("Panic!");
+                    Log.e("EmergencyReport", "Error sending emergency: " + error.toString());
+                    Toast.makeText(ReporterActivity.this, "Failed to report emergency. Please try again.", Toast.LENGTH_LONG).show();
+                    panicButton.setText("PANIC");
+                    panicButton.setEnabled(true);
                 }
         );
 
